@@ -54,7 +54,7 @@ The auth hash will contain:
   info: {},
   credentials: {
     token: 'access_token',
-    expires_at: 1234567890,
+    expires_at: '2023-11-10T16:37:48.178+00:00',
     scope: 'read_products,read_orders'
   },
   extra: {
