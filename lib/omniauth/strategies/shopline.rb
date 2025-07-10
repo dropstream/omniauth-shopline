@@ -14,7 +14,7 @@ module OmniAuth
         token_url: '/admin/oauth/token/create'
       }
 
-      option :provider_ignores_state, true
+      option :provider_ignores_state, true # ?
       option :token_params, { grant_type: 'authorization_code' }
 
       def initialize(app, *args, &block)
@@ -25,9 +25,9 @@ module OmniAuth
 
       def request_phase
         params = {
-          appKey: options.client_id,
+          appKey: options.app_key,
           responseType: 'code',
-          scope: options.scope || 'read_products',
+          scope: options.scope,
           redirectUri: callback_url
         }
 
@@ -47,11 +47,11 @@ module OmniAuth
 
       def build_access_token
         verifier = request.params['code']
-        # time must be millisecond level
+        # time must be integer with milliseconds
         timestamp = (Time.now.to_f * 1000).to_i
 
         token_params = {
-          appKey: options.client_id,
+          appKey: options.app_secret,
           appSecret: options.client_secret,
           code: verifier,
           redirectUri: callback_url,
@@ -62,7 +62,7 @@ module OmniAuth
 
         headers = {
           'Content-Type' => 'application/json',
-          'appkey' => options.client_id,
+          'appkey' => options.app_key,
           'timestamp' => timestamp,
           'sign' => token_params[:sign]
         }
@@ -108,7 +108,7 @@ module OmniAuth
         source = sorted_params.map { |k, v| "#{k}=#{v}" }.join('&')
 
         # Generate HMAC-SHA256 signature using helper method
-        generate_hmac_sha256(source, options.client_secret)
+        generate_hmac_sha256(source, options.app_secret)
       end
 
       def generate_hmac_sha256(source, secret)
