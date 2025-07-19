@@ -14,7 +14,6 @@ module OmniAuth
         token_url: '/admin/oauth/token/create'
       }
 
-      option :provider_ignores_state, true # ?
       option :token_params, { grant_type: 'authorization_code' }
 
       def initialize(app, *args, &block)
@@ -50,35 +49,36 @@ module OmniAuth
         # time must be integer with milliseconds
         timestamp = (Time.now.to_f * 1000).to_i
 
-        token_params = {
-          appKey: options.app_secret,
-          appSecret: options.client_secret,
-          code: verifier,
-          redirectUri: callback_url,
+        # Generate signature for headers
+        header_params = {
+          appkey: options.app_key,
           timestamp: timestamp
         }
-
-        token_params[:sign] = generate_signature(token_params)
+        signature = generate_signature(header_params)
 
         headers = {
           'Content-Type' => 'application/json',
           'appkey' => options.app_key,
-          'timestamp' => timestamp,
-          'sign' => token_params[:sign]
+          'timestamp' => timestamp.to_s,
+          'sign' => signature
         }
 
+        # Body only contains the authorization code
+        body = { code: verifier }
+
         response = client.request(:post, options.client_options.token_url, {
-          body: token_params.to_json,
+          body: body.to_json,
           headers: headers
         })
 
-        if response.parsed['accessToken']
+        # Parse nested response structure: data.accessToken
+        if response.parsed['data'] && response.parsed['data']['accessToken']
           ::OAuth2::AccessToken.new(
             client,
-            response.parsed['accessToken'],
+            response.parsed['data']['accessToken'],
             {
-              expires_at: response.parsed['expireTime'],
-              scope: response.parsed['scope']
+              expires_at: response.parsed['data']['expireTime'],
+              scope: response.parsed['data']['scope']
             }
           )
         else
