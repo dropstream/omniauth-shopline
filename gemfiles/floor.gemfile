@@ -1,0 +1,11 @@
+# frozen_string_literal: true
+
+# Resolves the oldest runtime dependencies the gemspec allows, so the declared floor
+# is exercised in CI rather than assumed. Run with:
+#
+#   BUNDLE_GEMFILE=gemfiles/floor.gemfile bundle install && \
+#     BUNDLE_GEMFILE=gemfiles/floor.gemfile bundle exec rake spec
+eval_gemfile File.expand_path("../Gemfile", __dir__)
+
+gem "omniauth", "2.0.0"
+gem "omniauth-oauth2", "1.8.0"

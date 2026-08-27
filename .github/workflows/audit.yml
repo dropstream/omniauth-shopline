@@ -1,0 +1,31 @@
+name: Audit
+
+# Kept out of ci.yml so a newly published advisory does not block a release that
+# is otherwise green.
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+  schedule:
+    # Mondays at 13:00 UTC — catches advisories published against the locked
+    # oauth2/rack chain without waiting for the next commit.
+    - cron: "0 13 * * 1"
+  workflow_dispatch:
+
+jobs:
+  audit:
+    name: Dependency audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: .ruby-version
+          bundler-cache: true
+
+      - name: Check for vulnerable dependencies
+        run: |
+          bundle exec bundle-audit update
+          bundle exec bundle-audit check

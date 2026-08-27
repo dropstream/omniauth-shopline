@@ -1,0 +1,56 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+  # Lets the release workflow gate publishing on this same matrix.
+  workflow_call:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        ruby: ["3.2", "3.3", "3.4", "4.0"]
+
+    name: Ruby ${{ matrix.ruby }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: ${{ matrix.ruby }}
+          bundler-cache: true
+
+      - name: Run the test suite
+        run: bundle exec rake spec
+
+      - name: Build the gem
+        run: bundle exec rake build
+
+  # The gemspec deliberately allows a wide dependency range, so the floor gets the
+  # same suite rather than being taken on trust.
+  floor:
+    name: Oldest supported dependencies
+    runs-on: ubuntu-latest
+    env:
+      BUNDLE_GEMFILE: gemfiles/floor.gemfile
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: .ruby-version
+
+      - name: Install the oldest allowed dependencies
+        run: bundle install --jobs 4
+
+      - name: Show what resolved
+        run: bundle list
+
+      - name: Run the test suite
+        run: bundle exec rake spec
