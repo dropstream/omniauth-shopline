@@ -1,0 +1,68 @@
+name: Release
+
+# Cut a release from the GitHub Releases UI: draft a release, set the tag to `vX.Y.Z`
+# (matching lib/omniauth-shopline/version.rb), and publish it. GitHub creates the tag,
+# which fires this workflow.
+on:
+  release:
+    types: [published]
+
+jobs:
+  # Never publish a version that has not passed the matrix.
+  test:
+    uses: ./.github/workflows/ci.yml
+
+  push:
+    name: Push gem to RubyGems.org
+    needs: test
+    runs-on: ubuntu-latest
+
+    # Publishing uses RubyGems trusted publishing (OIDC), so there is no API key
+    # secret to rotate and it works with the gemspec's `rubygems_mfa_required`.
+    #
+    # omniauth-shopline has never been pushed, so the first release needs a *pending*
+    # trusted publisher instead of a per-gem one — it both claims the name and makes
+    # the pusher an owner:
+    #   https://rubygems.org/profile/oidc/pending_trusted_publishers -> "Create", with
+    #   gem name `omniauth-shopline`, owner `dropstream`, repository `omniauth-shopline`,
+    #   workflow `release.yml`, and environment `release`.
+    # After the first successful push it becomes an ordinary trusted publisher, managed
+    # from the gem's own "Trusted publishers" page.
+    environment: release
+
+    permissions:
+      id-token: write # mandatory for trusted publishing
+      # GitHub already created the release and its tag, so nothing here writes to
+      # the repo: `rake release` sees the tag and skips its own tag-and-push step.
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.release.tag_name }}
+          # rubygems/release-gem installs its own short-lived git credentials.
+          persist-credentials: false
+
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: .ruby-version
+          bundler-cache: true
+
+      # `rake release` builds whatever version.rb says, regardless of the tag. If the
+      # two disagree it would publish one version under another version's release, so
+      # stop here first.
+      - name: Verify the release tag matches the gem version
+        env:
+          TAG_NAME: ${{ github.event.release.tag_name }}
+        run: |
+          gem_version="$(ruby -r./lib/omniauth-shopline/version -e 'print Omniauth::Shopline::VERSION')"
+          tag_version="${TAG_NAME#v}"
+          if [ "$gem_version" != "$tag_version" ]; then
+            echo "::error::Release tag ${TAG_NAME} does not match lib/omniauth-shopline/version.rb (${gem_version})."
+            exit 1
+          fi
+          echo "Releasing omniauth-shopline ${gem_version}"
+
+      # Builds the gem and runs `gem push` against the gemspec's allowed_push_host.
+      - name: Push to RubyGems.org
+        uses: rubygems/release-gem@v1
